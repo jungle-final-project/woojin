@@ -130,6 +130,76 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ToolResult"
+  /api/agent/sessions:
+    post:
+      summary: Create limited Agent session
+      responses:
+        "200":
+          description: Created Agent session placeholder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSession"
+  /api/agent/sessions/{id}/run:
+    post:
+      summary: Run limited Agent orchestration
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent run result with state timeline and tool invocations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSession"
+  /api/agent/sessions/{id}:
+    get:
+      summary: Agent session detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSession"
+  /api/rag/search:
+    get:
+      summary: Search RAG evidence candidates
+      parameters:
+        - in: query
+          name: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: RAG evidence candidates
+  /api/rag/evidence/{id}:
+    get:
+      summary: RAG evidence detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: RAG evidence detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RagEvidence"
   /api/price-alerts:
     get:
       summary: Price alerts
@@ -141,6 +211,12 @@ paths:
       responses:
         "201":
           description: Created alert
+  /api/price-snapshots/collect:
+    post:
+      summary: Queue price snapshot collection
+      responses:
+        "202":
+          description: Price collection job queued
   /api/agent-logs/upload:
     post:
       summary: Upload recent agent log
@@ -201,12 +277,60 @@ paths:
       responses:
         "200":
           description: Tool invocations
+  /api/admin/tool-invocations/{id}:
+    get:
+      summary: Tool invocation detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tool invocation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolInvocation"
+  /api/admin/rag-evidence/{id}:
+    get:
+      summary: Admin RAG evidence detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: RAG evidence detail for admin review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RagEvidence"
   /api/admin/as-tickets:
     get:
       summary: Admin AS tickets
       responses:
         "200":
           description: Tickets
+  /api/admin/as-tickets/{id}:
+    get:
+      summary: Admin AS ticket detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Admin ticket detail with log policy and cause candidates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAsTicket"
   /api/admin/price-jobs:
     get:
       summary: Price job list
@@ -283,6 +407,103 @@ components:
         summary:
           type: string
         warnings:
+          type: array
+          items:
+            type: string
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/RagEvidence"
+    AgentSession:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, RAG_SEARCHED, TOOLS_CALLED, SUMMARY_READY, FAILED, FALLBACK_READY]
+        mode:
+          type: string
+          example: LIMITED_ORCHESTRATOR
+        stateTimeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentState"
+        toolInvocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolResult"
+        fallbackPolicy:
+          type: string
+        summary:
+          type: string
+    AgentState:
+      type: object
+      properties:
+        state:
+          type: string
+        owner:
+          type: string
+        description:
+          type: string
+    ToolInvocation:
+      type: object
+      properties:
+        id:
+          type: string
+        sessionId:
+          type: string
+        tool:
+          type: string
+        status:
+          type: string
+          enum: [PASS, WARN, FAIL]
+        confidence:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+        latencyMs:
+          type: integer
+        request:
+          type: object
+        result:
+          $ref: "#/components/schemas/ToolResult"
+    RagEvidence:
+      type: object
+      properties:
+        id:
+          type: string
+        sourceId:
+          type: string
+        summary:
+          type: string
+        score:
+          type: number
+        usedBy:
+          type: string
+    AdminAsTicket:
+      type: object
+      properties:
+        id:
+          type: string
+        user:
+          type: string
+        symptom:
+          type: string
+        status:
+          type: string
+        logRangeMinutes:
+          type: integer
+          example: 30
+        consentRequired:
+          type: boolean
+        retentionDays:
+          type: integer
+          example: 30
+        causeCandidates:
+          type: array
+          items:
+            type: string
+        upgradeCandidates:
           type: array
           items:
             type: string

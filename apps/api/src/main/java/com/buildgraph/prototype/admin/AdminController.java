@@ -29,9 +29,49 @@ public class AdminController {
         return MockData.map("items", List.of(MockData.toolResult("compatibility"), MockData.toolResult("power"), MockData.toolResult("price")));
     }
 
+    @GetMapping("/tool-invocations/{id}")
+    Map<String, Object> toolInvocation(@PathVariable String id) {
+        return MockData.map(
+                "id", id,
+                "sessionId", "demo-session",
+                "tool", "power",
+                "status", "WARN",
+                "confidence", "MEDIUM",
+                "latencyMs", 168,
+                "request", MockData.map("cpuId", "cpu-7600", "gpuId", "gpu-4070s", "psuId", "psu-750"),
+                "result", MockData.toolResult("power")
+        );
+    }
+
+    @GetMapping("/rag-evidence/{id}")
+    Map<String, Object> ragEvidence(@PathVariable String id) {
+        return MockData.map(
+                "id", id,
+                "sourceId", "psu-rule-001",
+                "summary", "GPU 피크 전력과 CPU TDP 합산 후 여유율 적용",
+                "score", 0.91,
+                "usedBy", "tool-power-001"
+        );
+    }
+
     @GetMapping("/as-tickets")
     Map<String, Object> tickets() {
         return MockData.map("items", MockData.tickets());
+    }
+
+    @GetMapping("/as-tickets/{id}")
+    Map<String, Object> ticket(@PathVariable String id) {
+        return MockData.map(
+                "id", id,
+                "user", "user@example.com",
+                "symptom", "게임 중 프레임 급락",
+                "status", "OPEN",
+                "logRangeMinutes", 30,
+                "consentRequired", true,
+                "retentionDays", 30,
+                "causeCandidates", List.of("GPU 온도 과열 가능성", "드라이버 오류 이벤트 반복 가능성"),
+                "upgradeCandidates", List.of("케이스 쿨링 개선", "GPU 상위 모델 후보")
+        );
     }
 
     @GetMapping("/price-jobs")

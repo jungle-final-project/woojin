@@ -23,4 +23,14 @@ public class PriceController {
     Map<String, Object> createAlert() {
         return MockData.map("priceAlertId", "alert-001", "status", "ACTIVE");
     }
+
+    @PostMapping("/price-snapshots/collect")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    Map<String, Object> collectSnapshots() {
+        return MockData.map(
+                "jobId", "price-job-001",
+                "status", "QUEUED",
+                "policy", "하루 1회 표시 가격 기준으로 수집하고 실패 시 이전 가격을 임시 사용합니다."
+        );
+    }
 }

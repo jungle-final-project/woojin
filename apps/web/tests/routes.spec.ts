@@ -13,8 +13,11 @@ const routes = [
   '/signup',
   '/admin',
   '/admin/agent-sessions/demo-session',
+  '/admin/tool-invocations/tool-power-001',
+  '/admin/rag-evidence/rag-psu-001',
   '/admin/parts',
-  '/admin/as-tickets'
+  '/admin/as-tickets',
+  '/admin/as-tickets/AS-1031'
 ];
 
 for (const route of routes) {

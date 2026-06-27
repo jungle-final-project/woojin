@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { AdminShell, DataTable, MetricCard, Panel, StateMessage, StatusBadge } from '../../components/ui';
-import { parts, tickets, toolRows } from '../../data/prototypeData';
+import { adminTicketDetailRows, agentStateRows, parts, ragEvidenceRows, tickets, toolInvocationRows } from '../../data/prototypeData';
 import { supportRows } from '../support/SupportPages';
 
 export function AdminDashboardPage() {
@@ -31,21 +31,72 @@ export function AgentSessionAdminPage() {
   return (
     <AdminShell title="Agent / RAG / Tool 근거 상세">
       <div className="grid grid-cols-[1fr_520px] gap-5">
+        <Panel title="Agent 상태 전이" subtitle="3번 담당자가 session/run/fallback을 구현할 기준 상태">
+          <DataTable columns={['step', 'state', 'owner', 'api', 'output']} rows={agentStateRows} />
+        </Panel>
+        <Panel title="실행 정책">
+          <StateMessage type="info" title="제한된 Agent" body="무제한 자율 Agent가 아니라 RAG 검색, Tool 검증, 설명 생성 순서를 고정한 오케스트레이터로 구현합니다." />
+          <div className="mt-4 rounded bg-slate-950 p-5 font-mono text-xs leading-6 text-slate-200">
+            QUEUED → RUNNING → RAG_SEARCHED → TOOLS_CALLED → SUMMARY_READY<br />
+            실패 시: FAILED → FALLBACK_READY
+          </div>
+        </Panel>
         <Panel title="Tool 호출 이력">
-          <DataTable columns={['tool', 'status', 'confidence', 'summary']} rows={toolRows.map((row) => ({ ...row, status: <StatusBadge status={row.status} />, confidence: <StatusBadge status={row.confidence} /> }))} />
+          <DataTable columns={['id', 'tool', 'status', 'confidence', 'latency', 'summary']} rows={toolInvocationRows.map((row) => ({ ...row, id: <Link className="font-bold text-brand-blue" to={`/admin/tool-invocations/${row.id}`}>{row.id}</Link>, status: <StatusBadge status={row.status} />, confidence: <StatusBadge status={row.confidence} /> }))} />
         </Panel>
         <Panel title="RAG Evidence">
-          <DataTable columns={['source', 'summary', 'score']} rows={[
-            { source: 'psu-rule-001', summary: 'GPU 피크 전력과 CPU TDP 합산 후 여유율 적용', score: '0.91' },
-            { source: 'qhd-gaming-4070s', summary: 'QHD 게이밍 기준 GPU 우선 구성 근거', score: '0.84' }
+          <DataTable columns={['id', 'sourceId', 'summary', 'score', 'owner']} rows={ragEvidenceRows.map((row) => ({ ...row, id: <Link className="font-bold text-brand-blue" to={`/admin/rag-evidence/${row.id}`}>{row.id}</Link> }))} />
+        </Panel>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function ToolInvocationAdminPage() {
+  return (
+    <AdminShell title="Tool Invocation 상세">
+      <div className="grid grid-cols-[1fr_420px] gap-5">
+        <Panel title="호출 상세" subtitle="2번/3번 담당자가 Tool request, result, evidence 저장을 연결할 화면">
+          <DataTable columns={['필드', '값']} rows={[
+            { 필드: 'invocationId', 값: 'tool-power-001' },
+            { 필드: 'tool', 값: 'power' },
+            { 필드: 'status', 값: <StatusBadge status="WARN" /> },
+            { 필드: 'confidence', 값: <StatusBadge status="MEDIUM" /> },
+            { 필드: 'latency', 값: '168ms' },
+            { 필드: 'sessionId', 값: 'demo-session' }
           ]} />
-          <div className="mt-5 rounded bg-slate-950 p-5 font-mono text-xs leading-6 text-slate-200">
+        </Panel>
+        <Panel title="표준 응답 형식">
+          <div className="rounded bg-slate-950 p-5 font-mono text-xs leading-6 text-slate-200">
             {'{'}<br />
-            &nbsp;&nbsp;"status": "WARN",<br />
-            &nbsp;&nbsp;"confidence": "MEDIUM",<br />
-            &nbsp;&nbsp;"summary": "PSU 여유율 확인 필요"<br />
+            &nbsp;&nbsp;"status": "PASS | WARN | FAIL",<br />
+            &nbsp;&nbsp;"score": 0.82,<br />
+            &nbsp;&nbsp;"confidence": "LOW | MEDIUM | HIGH",<br />
+            &nbsp;&nbsp;"warnings": ["피크 전력 여유율 부족"],<br />
+            &nbsp;&nbsp;"evidence": ["psu-rule-001"]<br />
             {'}'}
           </div>
+        </Panel>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function RagEvidenceAdminPage() {
+  return (
+    <AdminShell title="RAG Evidence 상세">
+      <div className="grid grid-cols-[1fr_420px] gap-5">
+        <Panel title="근거 문서" subtitle="3번 담당자가 pgvector 검색 결과와 source metadata를 연결할 화면">
+          <DataTable columns={['필드', '값']} rows={[
+            { 필드: 'evidenceId', 값: 'rag-psu-001' },
+            { 필드: 'sourceId', 값: 'psu-rule-001' },
+            { 필드: 'score', 값: '0.91' },
+            { 필드: 'usedBy', 값: 'tool-power-001' },
+            { 필드: 'summary', 값: 'GPU 피크 전력과 CPU TDP 합산 후 여유율 적용' }
+          ]} />
+        </Panel>
+        <Panel title="구현 메모">
+          <StateMessage type="info" title="자동 학습 아님" body="Feedback Loop는 모델 자동 학습이 아니라 오차와 개선 후보를 관리자 화면에 기록하는 방식입니다." />
         </Panel>
       </div>
     </AdminShell>
@@ -73,7 +124,7 @@ export function AdminTicketsPage() {
     <AdminShell title="AS 티켓 관리자">
       <div className="grid grid-cols-[1fr_480px] gap-5">
         <Panel title="티켓 큐">
-          <DataTable columns={['id', 'user', 'symptom', 'status', 'cause']} rows={supportRows} />
+          <DataTable columns={['id', 'user', 'symptom', 'status', 'cause']} rows={supportRows.map((row) => ({ ...row, id: <Link className="font-bold text-brand-blue" to={`/admin/as-tickets/${row.id}`}>{row.id}</Link> }))} />
         </Panel>
         <Panel title="선택 티켓 상세">
           <DataTable columns={['필드', '값']} rows={[
@@ -85,6 +136,27 @@ export function AdminTicketsPage() {
           <div className="mt-5 flex gap-3">
             <button className="rounded bg-brand-blue px-4 py-3 text-sm font-bold text-white">담당자 배정</button>
             <button className="rounded border border-slate-300 px-4 py-3 text-sm font-bold">상태 저장</button>
+          </div>
+        </Panel>
+      </div>
+    </AdminShell>
+  );
+}
+
+export function AdminTicketDetailPage() {
+  return (
+    <AdminShell title="AS 티켓 상세">
+      <div className="grid grid-cols-[1fr_440px] gap-5">
+        <Panel title="티켓 / 로그 / 동의 정책" subtitle="4번 담당자가 로그 업로드와 얕은 AS 후보를 연결할 기준 화면">
+          <DataTable columns={['field', 'value']} rows={adminTicketDetailRows} />
+        </Panel>
+        <Panel title="관리자 조치">
+          <StateMessage type="warn" title="사용자 화면 노출 제한" body="사용자에게는 티켓 번호와 접수 상태만 표시하고, 원인 후보와 로그 요약은 관리자 화면에서만 확인합니다." />
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <button className="rounded bg-brand-blue px-4 py-3 text-sm font-bold text-white">담당자 배정</button>
+            <button className="rounded border border-slate-300 px-4 py-3 text-sm font-bold">상태 저장</button>
+            <button className="rounded border border-slate-300 px-4 py-3 text-sm font-bold">로그 다운로드</button>
+            <button className="rounded border border-slate-300 px-4 py-3 text-sm font-bold">업그레이드 후보 등록</button>
           </div>
         </Panel>
       </div>

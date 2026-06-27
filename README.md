@@ -20,6 +20,24 @@ docker compose up --build
 - RabbitMQ: http://localhost:15672
 - Mailpit: http://localhost:8025
 
+## Validation
+
+```powershell
+cd apps/web
+npm run build
+npm run test
+
+cd ../..
+docker compose config
+docker compose up --build
+```
+
+Optional k6 starting point:
+
+```powershell
+k6 run infra/k6/smoke.js
+```
+
 ## Prototype Scope
 
 This repository is a desktop-only prototype scaffold. It connects the 14 core user/admin screens, seed-backed API responses, database-backed runtime wiring, and role-based workspaces for five team members.
