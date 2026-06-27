@@ -18,6 +18,6 @@ public class HealthController {
     @GetMapping("/health")
     Map<String, Object> health() {
         Integer db = jdbcTemplate.queryForObject("select 1", Integer.class);
-        return Map.of("status", "UP", "database", db == 1 ? "UP" : "UNKNOWN");
+        return Map.of("status", "UP", "database", Integer.valueOf(1).equals(db) ? "UP" : "UNKNOWN");
     }
 }
