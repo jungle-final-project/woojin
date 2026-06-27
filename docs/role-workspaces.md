@@ -16,7 +16,7 @@
 | 2 | Create part/price DTO and service skeletons behind the existing controllers | `/api/parts`, `/api/tools/{tool}/check`, `/api/price-alerts`, `/api/price-snapshots/collect` no longer depend on shared `MockData` |
 | 3 | Implement Agent session state model and RAG evidence boundary | `/api/agent/sessions`, `/api/agent/sessions/{id}/run`, `/api/rag/search`, admin Agent detail show state timeline and evidence |
 | 4 | Connect PC Agent JSONL export to upload and AS ticket creation | AS request creates AgentLogUpload and AsTicket records with consent, 30-minute range, and admin-only cause candidates |
-| 5 | Add auth guard, admin guard, and infra smoke scripts | User/admin routes distinguish roles, Docker services stay reproducible, and k6 script skeleton exists |
+| 5 | Add auth guard, admin guard, PR CI, and infra smoke scripts | User/admin routes distinguish roles, GitHub Actions protects build/test basics, Docker services stay reproducible, and k6 script skeleton exists |
 
 ## Seed Ownership
 
@@ -45,6 +45,18 @@ Frontend files are split by implementation owner so feature work does not pile i
 | 3 | `apps/web/src/features/admin/pages/AgentSessionAdminPage.tsx`, `ToolInvocationAdminPage.tsx`, `RagEvidenceAdminPage.tsx`, `apps/web/src/features/admin/mocks/adminMock.ts` | Agent/RAG/Tool evidence review screens |
 | 4 | `apps/web/src/features/support`, `apps/web/src/features/support/supportApi.ts` | AS request, ticket detail, log upload policy |
 | 5 | `apps/web/src/components/layout`, `apps/web/src/components/display`, `apps/web/src/components/feedback`, `apps/web/src/features/admin/pages/AdminDashboardPage.tsx` | Shared shell, common UI, admin dashboard |
+
+## CI Ownership
+
+The repository includes a minimal GitHub Actions workflow at `.github/workflows/ci.yml`.
+
+| Check | Owner | Purpose |
+| --- | --- | --- |
+| `npm ci`, `npm run build`, `npm run test` in `apps/web` | 5 maintains, all owners keep passing | Catch broken routes, TypeScript errors, and frontend build failures |
+| `./gradlew bootJar --no-daemon` in `apps/api` with Java 21 | 5 maintains, backend owners keep passing | Catch backend compile and packaging failures |
+| `docker compose config` | 5 | Catch invalid compose changes before merge |
+
+CI intentionally does not deploy, enforce branch protection, or run full load tests. Those remain 5번 담당자의 later infra decisions.
 
 ## Shared Contract Rules
 

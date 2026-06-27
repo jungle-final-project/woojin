@@ -38,6 +38,12 @@ Optional k6 starting point:
 k6 run infra/k6/smoke.js
 ```
 
+GitHub Actions runs the same core checks for pull requests and pushes to `main`:
+
+- `apps/web`: `npm ci`, `npm run build`, `npm run test`
+- `apps/api`: Java 21 `./gradlew bootJar --no-daemon`
+- root: `docker compose config`
+
 ## Prototype Scope
 
 This repository is a desktop-only prototype scaffold. It connects the 14 core user/admin screens, seed-backed API responses, database-backed runtime wiring, and role-based workspaces for five team members.

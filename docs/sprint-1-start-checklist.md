@@ -37,5 +37,6 @@ This checklist turns the final plan into concrete starting work without requirin
 ## Owner 5: Infra/Admin/Auth
 
 - Add user/admin route guards.
-- Add k6 script skeleton for the planned 300/1000 concurrent-user checks.
+- Maintain `.github/workflows/ci.yml` for PR build, route smoke, API bootJar, and compose config checks.
+- Expand the k6 script skeleton toward the planned 300/1000 concurrent-user checks.
 - Keep Redis, RabbitMQ, Mailpit, and PostgreSQL startup reproducible through Docker Compose.

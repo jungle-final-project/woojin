@@ -14,6 +14,7 @@ This document checks whether the current prototype reflects `PLAN (3).md` as a t
 | Part/price scope | Parts, tool checks, price alerts, price snapshot collect job, and admin price job placeholders exist | Reflected |
 | PC Agent/AS scope | Python CLI skeleton, log upload API, AS ticket API, admin AS detail, consent, 30-minute range, 30-day retention fields exist | Reflected |
 | Infra scope | Docker Compose includes web, api, PostgreSQL pgvector, Redis, RabbitMQ, Mailpit; k6 smoke script exists | Reflected |
+| PR safety net | GitHub Actions runs web build, route smoke tests, API bootJar, and Docker Compose config | Reflected |
 | MVP exclusions | README and role rules keep payment, shipping, custom remote control, exact FPS guarantee, and lowest-price guarantee out of scope | Reflected |
 
 ## Remaining Non-blockers
