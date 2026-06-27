@@ -1,6 +1,5 @@
 package com.buildgraph.prototype.log;
 
-import com.buildgraph.prototype.common.MockData;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,11 +15,11 @@ public class AgentLogController {
     @PostMapping("/agent-logs/upload")
     @ResponseStatus(HttpStatus.CREATED)
     Map<String, Object> upload() {
-        return MockData.map("logUploadId", "log-1001", "status", "UPLOADED", "rangeMinutes", 30);
+        return LogSeed.upload();
     }
 
     @GetMapping("/agent-logs/{id}")
     Map<String, Object> log(@PathVariable String id) {
-        return MockData.map("id", id, "status", "UPLOADED", "summary", "GPU 88도, 사용률 96%, VRAM 89% 관측");
+        return LogSeed.detail(id);
     }
 }

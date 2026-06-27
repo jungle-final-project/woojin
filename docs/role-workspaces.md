@@ -18,9 +18,25 @@
 | 4 | Connect PC Agent JSONL export to upload and AS ticket creation | AS request creates AgentLogUpload and AsTicket records with consent, 30-minute range, and admin-only cause candidates |
 | 5 | Add auth guard, admin guard, and infra smoke scripts | User/admin routes distinguish roles, Docker services stay reproducible, and k6 script skeleton exists |
 
+## Seed Ownership
+
+Seed/mock data follows the same module boundary as the final plan. `common/MockData.java` is only a small utility for `map()` and `now()`.
+
+| Module | Seed file | Owner |
+| --- | --- | --- |
+| build | `apps/api/src/main/java/com/buildgraph/prototype/build/BuildSeed.java` | 1 |
+| part/tool | `apps/api/src/main/java/com/buildgraph/prototype/part/PartSeed.java`, `ToolSeed.java` | 2 |
+| price | `apps/api/src/main/java/com/buildgraph/prototype/price/PriceSeed.java` | 2 |
+| agent | `apps/api/src/main/java/com/buildgraph/prototype/agent/AgentSeed.java` | 3 |
+| rag | `apps/api/src/main/java/com/buildgraph/prototype/rag/RagSeed.java` | 3 |
+| log | `apps/api/src/main/java/com/buildgraph/prototype/log/LogSeed.java` | 4 |
+| ticket | `apps/api/src/main/java/com/buildgraph/prototype/ticket/TicketSeed.java` | 4 |
+| user | `apps/api/src/main/java/com/buildgraph/prototype/user/UserSeed.java` | 5 |
+| admin | `apps/api/src/main/java/com/buildgraph/prototype/admin/AdminSeed.java` | 5 |
+
 ## Shared Contract Rules
 
 - Do not change an existing API response shape without updating `docs/openapi.yaml` in the same PR.
-- If a feature needs seed data, add it inside the owning feature first; avoid adding more unrelated cases to `MockData`.
+- If a feature needs seed data, add it inside the owning module seed file; do not add domain data to `common/MockData.java`.
 - Admin detail screens are implementation targets, not final UX. Keep them explicit about state, owner, API, and evidence fields.
 - Keep MVP exclusions intact: no payment, shipping, custom remote control, exact FPS guarantee, or lowest-price guarantee.
