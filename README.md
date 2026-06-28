@@ -211,9 +211,29 @@ cd apps/api
 - DB 테이블, 컬럼, enum, 상태 전이를 바꾸면 같은 PR에서 [docs/DB_SCHEMA.md](docs/DB_SCHEMA.md)를 함께 수정합니다.
 - route, owner, 공유 파일 경계를 바꾸면 같은 PR에서 [docs/ROUTE_OWNERSHIP.md](docs/ROUTE_OWNERSHIP.md)를 함께 수정합니다.
 - mock 데이터는 담당 feature의 `mocks` 디렉터리에 둡니다.
-- seed 데이터는 담당 백엔드 domain의 `*Seed.java`에 둡니다.
+- 팀 공통 DB seed는 Flyway migration에 둡니다. `*Seed.java`는 DB 연결 전 임시 응답이나 단위 테스트용으로만 사용합니다.
 - `components/ui.tsx`, `prototypeData.ts`, `QuotePages.tsx`, `AdminPages.tsx`는 barrel 용도입니다. 새 구현을 쌓지 않습니다.
 - 결제/배송/원격제어/최저가/FPS 보장은 이후 Sprint에서 별도 기능으로 다룹니다.
+
+## API와 DB 연결 책임
+
+각 담당자는 자기 API를 자기 DB 테이블에 연결합니다. 다른 담당자의 API를 대신 DB 연결하거나, 다른 담당자 테이블의 쓰기 로직을 임의로 구현하지 않습니다.
+
+| 담당 | API 연결 책임 | 주로 연결할 DB 테이블 | 직접 해도 되는 작업 | 먼저 상의할 작업 |
+| --- | --- | --- | --- | --- |
+| 1번 Quote/Auth 화면 | 견적 입력, 추천 Build 화면, 내 견적함, 로그인/회원가입 화면 | `requirements`, `builds`, `build_items` | 1번 route와 quote feature에서 견적 API 응답을 화면에 연결 | Auth token 저장 방식, Build 생성 과정에서 Agent 추적 데이터 쓰기 |
+| 2번 Parts/Price/Tool | 부품 목록, 부품 상세, 가격 알림, 가격 작업, 호환성/전력/규격/성능/가격 Tool | `parts`, `price_snapshots`, `price_alerts`, `price_jobs`, `compatibility_rules`, `benchmark_summaries` | 부품/가격 API를 DB 조회로 전환, Tool 계산 로직 구현 | Agent 내부 Tool 호출 이력 저장 방식, `price_jobs` 실행 권한/중복 실행 정책 |
+| 3번 Agent/RAG/Tool 근거 | Agent session, Tool invocation, RAG evidence 관리자 상세 | `agent_sessions`, `tool_invocations`, `rag_evidence` | Agent/RAG/Tool 추적 API를 DB 조회/저장으로 전환 | 1번 추천 생성 로직, 2번 Tool 계산 결과 구조, 4번 AS 분석 트리거 방식 |
+| 4번 Support/PC Agent | 로그 업로드, AS 접수, AS 티켓 상세, PC Agent CLI | `agent_log_uploads`, `as_tickets` | 로그 업로드/AS 티켓 API를 DB 저장으로 전환 | 로그 분석 Agent session 생성, 로그 보관/삭제 스케줄러 |
+| 5번 Auth/Admin/Infra | 인증 API, 관리자 shell, 공통 admin dashboard, audit, security, migration | `users`, `user_auth_providers`, `refresh_tokens`, `admin_audit_logs` | 인증/권한/관리자 공통 API와 Flyway 순서 관리 | 각 도메인 관리자 상세의 내부 데이터 구조 변경 |
+
+공통 기준:
+
+- API path와 response의 `id`는 내부 `BIGINT id`가 아니라 `public_id`입니다.
+- 다른 담당자 테이블은 기본적으로 읽기만 하고, 쓰기가 필요하면 해당 owner와 API/DTO를 먼저 맞춥니다.
+- enum/status, table/column, shared DTO, 권한 정책을 바꾸면 관련 문서를 같은 PR에서 함께 수정합니다.
+- Flyway migration 번호, 실행 순서, extension, 공통 enum/check constraint, FK 순서 조정은 5번 owner가 관리합니다.
+- 공통 seed는 기능 구현을 시작하기 위한 기준 데이터입니다. 실제 크롤링 데이터나 운영 데이터로 취급하지 않습니다.
 
 ## CI
 
