@@ -45,25 +45,36 @@
 
 이번 2주 안에 3번 화면은 완성형 UI가 아니라, 와이어프레임에서 약속한 정보 구조가 실제 API 데이터로 채워지는 수준을 목표로 한다. 색상, 여백, 세부 시각 개선은 AdminShell과 공통 컴포넌트 기준을 따른다.
 
-## 1주차 계획
+## 기능 단위 진행 현황
 
-| 일자 | 목표 | 산출물 | 검증 |
-|---|---|---|---|
-| 1일차 | 계약 문서와 현재 코드 대조 | Agent/RAG/Tool API, DB, 화면 담당 범위 정리 | `docs/API_CONTRACT.md`, `docs/DB_SCHEMA.md`, `docs/ROUTE_OWNERSHIP.md` 기준 충돌 확인 |
-| 2일차 | Agent session 기본 흐름 정리 | 세션 생성, root 구분, 목적 타입 정리 | `POST /api/agent/sessions`, `GET /api/agent/sessions/{id}` |
-| 3일차 | Agent 상태 전이 공통화 | `QUEUED -> RUNNING -> RAG_SEARCHED -> TOOLS_CALLED -> SUMMARY_READY -> SUCCEEDED` 전이 메서드 | 금지 전이 409, 중복 실행 409 |
-| 4일차 | RAG 근거 기록/조회 연결 | 세션별 `rag_evidence` 저장, public/admin 조회 분리 | `GET /api/rag/evidence/{id}`, `GET /api/admin/rag-evidence/{id}` |
-| 5일차 | Tool 호출 기록/조회 연결 | 세션별 `tool_invocations` 저장, request/result payload 보존 | `GET /api/admin/tool-invocations/{id}` |
+바이브/AI 보조 개발을 전제로 하므로 하루에 하나씩 나누지 않는다. 아래 순서대로 기능 단위를 작게 커밋하고, 통과한 단위는 바로 다음 단위로 넘어간다.
 
-## 2주차 계획
+| 우선순위 | 기능 단위 | 상태 | 현재 산출물 | 남은 작업 |
+|---:|---|---|---|---|
+| 1 | 공통 계약 문서 확인 | 완료 | `API_CONTRACT`, `DB_SCHEMA`, `ROUTE_OWNERSHIP` 기준 확인 | 계약 변경 시 문서 먼저 갱신 |
+| 2 | 담당 와이어프레임 범위 확정 | 완료 | 관리자 Agent/RAG/Tool 상세 화면 3개와 협업 화면 분리 | Notion 공유 후 팀 피드백 반영 |
+| 3 | Agent session 기본 흐름 | 완료 | `POST /api/agent/sessions`, root 구분, 목적 타입, `QUEUED -> RUNNING` | 인증/소유권 검증은 5번 공통 정책과 맞춘 뒤 보강 |
+| 4 | RAG 근거 기록 기반 | 완료 | `AgentTraceService.recordRagEvidence`, `AgentRagEvidenceDraft` | 실제 runner에서 호출해 세션별 evidence 생성 |
+| 5 | Tool 호출 기록 기반 | 완료 | `AgentTraceService.recordToolInvocation`, `AgentToolInvocationDraft` | 2번 Tool 결과 DTO와 payload shape 최종 합의 |
+| 6 | Agent 상태 전이 공통화 | 다음 작업 | 현재 `runSession` 내부에 `QUEUED -> RUNNING` 존재 | `advanceStatus` 공통 메서드, 허용 전이/금지 전이 검증 |
+| 7 | 목적별 mock Agent runner | 대기 | 목적 프로필 `BUILD_RECOMMEND`, `BUILD_EXPLAIN`, `AS_ANALYZE` 존재 | RAG 기록, Tool 기록, 상태 전이를 한 번에 연결 |
+| 8 | 관리자 Agent 상세 화면 API 연결 | 대기 | 와이어프레임 화면과 route 존재 | mock table을 `GET /api/admin/agent-sessions/{id}` 응답으로 교체 |
+| 9 | Tool/RAG 상세 화면 API 연결 | 대기 | 상세 화면 route와 API wrapper 존재 | Tool payload, RAG chunk/metadata/score 실제 표시 |
+| 10 | 테스트와 계약 검증 | 대기 | 기존 build 검증 통과 | backend smoke, frontend route smoke, OpenAPI 검증 |
+| 11 | 협업 인터페이스 문서화 | 대기 | 협업 지점 표 존재 | 1번/2번/4번이 호출할 내부 service 예시 정리 |
 
-| 일자 | 목표 | 산출물 | 검증 |
-|---|---|---|---|
-| 6일차 | 목적별 mock Agent runner | `BUILD_RECOMMEND`, `BUILD_EXPLAIN`, `AS_ANALYZE`별 deterministic 실행 흐름 | 세션별 evidence/tool id 생성 확인 |
-| 7일차 | 관리자 Agent 상세 화면 연결 | Agent timeline, Tool 목록, evidence 목록 API 연결 | `/admin/agent-sessions/:id` 화면 렌더링 |
-| 8일차 | Tool/RAG 상세 화면 연결 | Tool payload 상세, RAG chunk/metadata/score 상세 표시 | `/admin/tool-invocations/:id`, `/admin/rag-evidence/:id` |
-| 9일차 | 1번/2번/4번 연동 인터페이스 정리 | 추천 API, Tool 결과, AS ticket 분석 트리거가 호출할 내부 service 사용법 정리 | 담당자별 호출 예시 공유 |
-| 10일차 | PR 전 검증과 문서 보강 | OpenAPI/문서/테스트/커밋 정리 | `bootJar`, 프론트 빌드, route smoke, OpenAPI 검증 |
+## 빠른 완성 순서
+
+남은 구현은 아래 순서로 진행한다.
+
+1. `AgentTraceService`에 상태 전이 공통 메서드를 추가한다.
+2. `runSession`이 직접 DB update하지 않고 상태 전이 공통 메서드를 사용하게 정리한다.
+3. 목적별 mock runner를 만들어 `RAG_SEARCHED`, `TOOLS_CALLED`, `SUMMARY_READY`, `SUCCEEDED`까지 한 번에 흐르게 한다.
+4. mock runner에서 `recordRagEvidence`, `recordToolInvocation`을 호출해 세션 상세에 evidence/tool id가 실제로 생기게 한다.
+5. 관리자 Agent 상세 화면을 API 데이터로 연결한다.
+6. Tool Invocation 상세와 RAG Evidence 상세 화면을 API 데이터로 연결한다.
+7. 1번 추천 API, 2번 Tool 결과, 4번 AS ticket 분석 트리거가 3번 trace를 어떻게 호출할지 예시 코드를 문서화한다.
+8. `bootJar`, 프론트 빌드, route smoke, OpenAPI 검증을 통과시킨다.
 
 ## 협업 확인 포인트
 
