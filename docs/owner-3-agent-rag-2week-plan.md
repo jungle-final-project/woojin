@@ -65,7 +65,7 @@
 | 7 | 목적별 mock Agent runner | 완료 | `AgentMockRunService`, 목적별 RAG/Tool 기록, `SUCCEEDED` 완료 흐름 | 실제 LLM/RAG 연동 시 교체 가능한 경계 유지 |
 | 8 | 관리자 Agent 상세 화면 API 연결 | 완료 | `AgentSessionAdminPage`가 Agent session/RAG evidence API 데이터로 패널 표시 | Tool/RAG drill-down 상세 화면과 UX 맞추기 |
 | 9 | Tool/RAG 상세 화면 API 연결 | 완료 | `ToolInvocationAdminPage`, `RagEvidenceAdminPage`가 관리자 상세 API 데이터 표시 | 테스트/계약 검증에서 route smoke 유지 |
-| 10 | 테스트와 계약 검증 | 완료 | OpenAPI, backend bootJar, frontend build/test, 임시 Docker smoke 통과 | PR 전 같은 명령 재실행 |
+| 10 | 테스트와 계약 검증 | 완료 | OpenAPI, backend bootJar, frontend build/test, 정식 Docker compose smoke 통과 | PR 전 같은 명령 재실행 |
 | 11 | 협업 인터페이스 문서화 | 완료 | `docs/owner-3-agent-rag-collaboration-guide.md` 추가 | 팀 피드백 반영 |
 
 ## 2026-06-29 검증 기록
@@ -77,9 +77,9 @@
 | 백엔드 빌드 | `apps/api/gradlew.bat bootJar --no-daemon` | `BUILD SUCCESSFUL` |
 | 프론트 빌드 | `npm --prefix apps/web run build` | TypeScript/Vite build 통과 |
 | 프론트 라우트 테스트 | `npm --prefix apps/web run test` | `31 passed` |
-| Docker 기동 | 기존 `buildgraph-*` 스택을 내리지 않고 임시 compose로 API `18080`, Web `15173` 포트 기동 | Postgres, Redis, RabbitMQ, Mailpit, API, Web 시작 성공 후 정리 |
+| Docker 기동 | 기존 `prototype` compose 스택을 정상 종료한 뒤 `hyunjin` 폴더에서 `docker compose down -v --remove-orphans; docker compose up --build -d` 실행 | 기본 포트 `8080`, `5173`, `5432`, `6379`, `5672`, `15672`, `1025`, `8025`로 Postgres, Redis, RabbitMQ, Mailpit, API, Web 시작 성공 |
 | API health | `GET /api/health` | `status=UP`, `database=UP` |
-| Web smoke | `GET http://localhost:15173` | HTTP `200` |
+| Web smoke | `GET http://localhost:5173` | HTTP `200` |
 | Agent smoke | 세션 생성 -> 실행 -> 상세 조회 | `RUNNING` 응답 후 최종 `SUCCEEDED`, Tool 5개, RAG evidence 1개 확인 |
 | Admin smoke | 관리자 Agent/Tool/RAG 상세 API 조회 | 첫 Tool `compatibility / PASS`, RAG source `internal-rule-qhd-gaming-mock` 확인 |
 
