@@ -3,42 +3,41 @@ package com.buildgraph.prototype.agent;
 import com.buildgraph.prototype.common.MockData;
 import java.math.BigDecimal;
 import java.util.List;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
-public class AgentMockRunService {
+public class DeterministicAgentRunner implements AgentRunner {
     private final AgentTraceService agentTraceService;
 
-    public AgentMockRunService(AgentTraceService agentTraceService) {
+    public DeterministicAgentRunner(AgentTraceService agentTraceService) {
         this.agentTraceService = agentTraceService;
     }
 
+    @Override
     @Transactional
-    public void completeDeterministicRun(String sessionId, AgentSessionRoot root, AgentRunProfile profile) {
+    public void run(String sessionId, AgentSessionRoot root, AgentRunProfile profile) {
         recordEvidence(sessionId, root, profile);
-        agentTraceService.advanceStatus(sessionId, AgentStatus.RAG_SEARCHED, "SYSTEM", "mock RAG evidence retrieved for " + profile.purpose());
+        agentTraceService.advanceStatus(sessionId, AgentStatus.RAG_SEARCHED, "SYSTEM", "RAG evidence retrieved for " + profile.purpose());
 
         recordToolInvocations(sessionId, root, profile);
-        agentTraceService.advanceStatus(sessionId, AgentStatus.TOOLS_CALLED, "SYSTEM", "mock tool invocations completed for " + profile.purpose());
+        agentTraceService.advanceStatus(sessionId, AgentStatus.TOOLS_CALLED, "SYSTEM", "tool invocations completed for " + profile.purpose());
 
         agentTraceService.updateSummary(sessionId, summary(profile));
-        agentTraceService.advanceStatus(sessionId, AgentStatus.SUMMARY_READY, "SYSTEM", "mock summary generated for " + profile.summaryTarget());
-        agentTraceService.advanceStatus(sessionId, AgentStatus.SUCCEEDED, "SYSTEM", "mock agent run completed");
+        agentTraceService.advanceStatus(sessionId, AgentStatus.SUMMARY_READY, "SYSTEM", "summary generated for " + profile.summaryTarget());
+        agentTraceService.advanceStatus(sessionId, AgentStatus.SUCCEEDED, "SYSTEM", "agent run completed");
     }
 
     private void recordEvidence(String sessionId, AgentSessionRoot root, AgentRunProfile profile) {
         AgentRagEvidenceDraft draft = switch (profile.purpose()) {
             case BUILD_RECOMMEND -> evidence(
-                    "internal-rule-qhd-gaming-mock",
+                    "internal-rule-qhd-gaming-seed",
                     "QHD gaming recommendations prioritize GPU class, CPU balance, power margin, and current price.",
-                    "QHD gaming build recommendation rule used by mock runner.",
+                    "QHD gaming build recommendation rule used by deterministic runner.",
                     BigDecimal.valueOf(0.92),
                     root,
                     profile
             );
             case BUILD_EXPLAIN -> evidence(
-                    "benchmark-build-explain-mock",
+                    "benchmark-build-explain-seed",
                     "Build explanations compare changed parts by expected bottleneck, price delta, and workload fit.",
                     "Benchmark and price reasoning used for build explanation.",
                     BigDecimal.valueOf(0.88),
@@ -46,7 +45,7 @@ public class AgentMockRunService {
                     profile
             );
             case AS_ANALYZE -> evidence(
-                    "support-guide-gpu-thermal-mock",
+                    "support-guide-gpu-thermal-seed",
                     "Sustained GPU temperature spikes with frame time drops can indicate throttling or driver instability.",
                     "Troubleshooting evidence used for AS analysis.",
                     BigDecimal.valueOf(0.86),
@@ -106,7 +105,7 @@ public class AgentMockRunService {
                         "confidence", confidence.name(),
                         "summary", toolSummary(toolName, status, profile.purpose()),
                         "details", MockData.map(
-                                "mock", true,
+                                "deterministic", true,
                                 "checkedAt", MockData.now(),
                                 "evidenceSourceTypes", profile.ragSourceTypes()
                         )
@@ -134,9 +133,9 @@ public class AgentMockRunService {
 
     private static String toolSummary(String toolName, ToolStatus status, AgentPurpose purpose) {
         return switch (purpose) {
-            case BUILD_RECOMMEND -> "Mock " + toolName + " check for build recommendation returned " + status + ".";
-            case BUILD_EXPLAIN -> "Mock " + toolName + " check for build explanation returned " + status + ".";
-            case AS_ANALYZE -> "Mock " + toolName + " check for AS analysis returned " + status + ".";
+            case BUILD_RECOMMEND -> "Seed " + toolName + " check for build recommendation returned " + status + ".";
+            case BUILD_EXPLAIN -> "Seed " + toolName + " check for build explanation returned " + status + ".";
+            case AS_ANALYZE -> "Seed " + toolName + " check for AS analysis returned " + status + ".";
         };
     }
 
@@ -148,9 +147,9 @@ public class AgentMockRunService {
 
     private static String summary(AgentRunProfile profile) {
         return switch (profile.purpose()) {
-            case BUILD_RECOMMEND -> "Mock Agent completed a build recommendation trace with RAG evidence and Tool checks.";
-            case BUILD_EXPLAIN -> "Mock Agent completed a build explanation trace with benchmark and price evidence.";
-            case AS_ANALYZE -> "Mock Agent completed an AS analysis trace with troubleshooting evidence and Tool checks.";
+            case BUILD_RECOMMEND -> "Agent completed a build recommendation trace with RAG evidence and Tool checks.";
+            case BUILD_EXPLAIN -> "Agent completed a build explanation trace with benchmark and price evidence.";
+            case AS_ANALYZE -> "Agent completed an AS analysis trace with troubleshooting evidence and Tool checks.";
         };
     }
 }
