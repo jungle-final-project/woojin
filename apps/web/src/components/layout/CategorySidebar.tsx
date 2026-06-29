@@ -15,6 +15,7 @@ const categoryRoutes: Record<string, string> = {
   SSD: '/self-quote?category=STORAGE',
   '파워': '/self-quote?category=PSU',
   '케이스': '/self-quote?category=CASE',
+  '쿨러': '/self-quote?category=COOLER',
   '목표가 알림': '/my/quotes',
   'PC Agent': '/support/new',
   'AS 접수': '/support/new'

@@ -24,7 +24,8 @@ public class NaverShoppingOfferService {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Set<String> CATEGORIES = Set.of("CPU", "GPU", "RAM", "MOTHERBOARD", "STORAGE", "PSU", "CASE", "COOLER");
     private static final String SOURCE = "NAVER_SHOPPING_SEARCH";
-    private static final Pattern PSU_WATT_PATTERN = Pattern.compile("(\\d{3,4})\\s*[Ww]");
+    private static final Pattern PSU_WATT_PATTERN = Pattern.compile("(?<!\\d)(\\d{3,4})\\s*(?:[Ww]|$|[^\\d])");
+    private static final Pattern SPEED_PATTERN = Pattern.compile("(\\d{4})\\s*(?:MHZ|MT/S)?");
 
     private final String clientId;
     private final String clientSecret;
@@ -79,6 +80,9 @@ public class NaverShoppingOfferService {
                 for (Map<String, Object> offer : offers) {
                     attempted += 1;
                     try {
+                        if (!isAcceptableCatalogOffer(normalizedCategory, offer)) {
+                            continue;
+                        }
                         CatalogCandidate candidate = upsertCandidate(jobId, normalizedCategory, searchQuery, offer);
                         discovered += 1;
                         if (publishToParts && publishCandidate(candidate, normalizedCategory, searchQuery, offer)) {
@@ -512,7 +516,8 @@ public class NaverShoppingOfferService {
         attributes.put("shortSpec", title);
         attributes.put("catalogGeneration", "EXTERNAL_REFRESH");
         attributes.put("currentLineupOnly", true);
-        attributes.put("toolReady", false);
+        attributes.put("specSource", "NAVER_SHOPPING_SEARCH");
+        attributes.put("specConfidence", "ESTIMATED_FROM_TITLE");
         attributes.put("metadataVersion", 4);
         attributes.put("externalSources", MockData.map(
                 "naver", MockData.map(
@@ -528,17 +533,25 @@ public class NaverShoppingOfferService {
             case "MOTHERBOARD" -> applyMotherboardAttributes(attributes, upperTitle);
             case "PSU" -> applyPsuAttributes(attributes, upperTitle);
             case "CPU" -> applyCpuAttributes(attributes, upperTitle);
+            case "CASE" -> applyCaseAttributes(attributes, upperTitle);
+            case "COOLER" -> applyCoolerAttributes(attributes, upperTitle);
             case "RAM" -> {
                 attributes.put("memoryType", "DDR5");
                 attributes.put("capacityGb", upperTitle.contains("64GB") ? 64 : 32);
+                attributes.put("moduleCount", upperTitle.contains("X2") || upperTitle.contains("2X") ? 2 : 2);
+                attributes.put("formFactor", "UDIMM");
+                applyMemorySpeed(attributes, upperTitle);
             }
             case "STORAGE" -> {
-                attributes.put("interface", "M.2 NVMe");
-                attributes.put("capacityGb", upperTitle.contains("4TB") ? 4000 : 2000);
+                attributes.put("interface", upperTitle.contains("PCIE 5") || upperTitle.contains("GEN5") || upperTitle.contains("G5") ? "PCIe 5.0 x4 NVMe" : "M.2 NVMe");
+                attributes.put("capacityGb", upperTitle.contains("4TB") ? 4000 : upperTitle.contains("1TB") ? 1000 : 2000);
+                attributes.put("formFactor", "M.2 2280");
             }
             default -> {
             }
         }
+        applyManualSpecOverrides(category, attributes, upperTitle);
+        attributes.put("toolReady", toolReadyFor(category, attributes));
         return attributes;
     }
 
@@ -571,6 +584,9 @@ public class NaverShoppingOfferService {
             attributes.put("vramGb", 8);
         }
         attributes.put("memoryType", "GDDR7");
+        attributes.put("lengthMm", inferredGpuLengthMm(upperTitle));
+        attributes.put("slotWidth", inferredGpuSlotWidth(upperTitle));
+        attributes.put("powerConnector", "12V-2x6");
     }
 
     private static void applyMotherboardAttributes(Map<String, Object> attributes, String upperTitle) {
@@ -591,7 +607,23 @@ public class NaverShoppingOfferService {
             attributes.put("chipset", "B850");
         }
         attributes.put("memoryType", "DDR5");
-        attributes.put("formFactor", "ATX");
+        if (upperTitle.contains("ITX")) {
+            attributes.put("formFactor", "MINI_ITX");
+            attributes.put("widthMm", 170);
+            attributes.put("depthMm", 170);
+        } else if (upperTitle.contains("M-ATX") || upperTitle.contains("MATX") || upperTitle.contains("M ATX")) {
+            attributes.put("formFactor", "MATX");
+            attributes.put("widthMm", 244);
+            attributes.put("depthMm", 244);
+        } else if (upperTitle.contains("E-ATX") || upperTitle.contains("EATX")) {
+            attributes.put("formFactor", "EATX");
+            attributes.put("widthMm", 305);
+            attributes.put("depthMm", 330);
+        } else {
+            attributes.put("formFactor", "ATX");
+            attributes.put("widthMm", 305);
+            attributes.put("depthMm", 244);
+        }
     }
 
     private static void applyPsuAttributes(Map<String, Object> attributes, String upperTitle) {
@@ -601,9 +633,12 @@ public class NaverShoppingOfferService {
         }
         if (upperTitle.contains("ATX 3.1")) {
             attributes.put("atxSpec", "ATX 3.1");
+        } else if (upperTitle.contains("ATX 3.0") || upperTitle.contains("PCIE5") || upperTitle.contains("PCI-E 5")) {
+            attributes.put("atxSpec", "ATX 3.0");
         }
         attributes.put("gpuConnector", "12V-2x6");
         attributes.put("modular", true);
+        attributes.put("depthMm", upperTitle.contains("1200W") ? 180 : 160);
     }
 
     private static void applyCpuAttributes(Map<String, Object> attributes, String upperTitle) {
@@ -614,6 +649,426 @@ public class NaverShoppingOfferService {
             attributes.put("socket", "LGA1851");
             attributes.put("architecture", "Arrow Lake");
         }
+        applyCpuCoreAndPower(attributes, upperTitle);
+    }
+
+    private static void applyCaseAttributes(Map<String, Object> attributes, String upperTitle) {
+        attributes.put("formFactor", upperTitle.contains("EATX") || upperTitle.contains("E-ATX") || upperTitle.contains("XL") || upperTitle.contains("900")
+                ? "EATX_ATX_MATX_ITX"
+                : "ATX_MATX_ITX");
+        attributes.put("airflowFocus", upperTitle.contains("MESH") || upperTitle.contains("FLOW") || upperTitle.contains("AIR"));
+        if (upperTitle.contains("MESHIFY 3 XL")) {
+            attributes.put("maxGpuLengthMm", 512);
+            attributes.put("maxCpuCoolerHeightMm", 185);
+            attributes.put("radiatorSupportMm", List.of(120, 240, 280, 360, 420));
+            applyDimensions(attributes, 566, 245, 520);
+        } else if (upperTitle.contains("MESHIFY 3")) {
+            attributes.put("maxGpuLengthMm", 349);
+            attributes.put("maxCpuCoolerHeightMm", 180);
+            attributes.put("radiatorSupportMm", List.of(120, 240, 280, 360));
+            applyDimensions(attributes, 468, 229, 474);
+        } else if (upperTitle.contains("LANCOOL 217")) {
+            attributes.put("maxGpuLengthMm", 380);
+            attributes.put("maxCpuCoolerHeightMm", 180);
+            attributes.put("radiatorSupportMm", List.of(120, 240, 280, 360));
+            applyDimensions(attributes, 482, 238, 503);
+        } else if (upperTitle.contains("H9 FLOW")) {
+            attributes.put("maxGpuLengthMm", 435);
+            attributes.put("maxCpuCoolerHeightMm", 165);
+            attributes.put("radiatorSupportMm", List.of(120, 240, 280, 360));
+            applyDimensions(attributes, 466, 290, 495);
+        } else if (upperTitle.contains("FRAME 4000D")) {
+            attributes.put("maxGpuLengthMm", 370);
+            attributes.put("maxCpuCoolerHeightMm", 170);
+            attributes.put("radiatorSupportMm", List.of(120, 240, 280, 360));
+            applyDimensions(attributes, 486, 239, 486);
+        } else if (upperTitle.contains("EVOLV X2")) {
+            attributes.put("maxGpuLengthMm", 380);
+            attributes.put("maxCpuCoolerHeightMm", 170);
+            attributes.put("radiatorSupportMm", List.of(120, 240, 280, 360));
+            applyDimensions(attributes, 490, 230, 500);
+        } else if (upperTitle.contains("LIGHT BASE 900")) {
+            attributes.put("maxGpuLengthMm", 495);
+            attributes.put("maxCpuCoolerHeightMm", 190);
+            attributes.put("radiatorSupportMm", List.of(120, 240, 280, 360, 420));
+            applyDimensions(attributes, 532, 327, 484);
+        }
+    }
+
+    private static void applyCoolerAttributes(Map<String, Object> attributes, String upperTitle) {
+        attributes.put("socketSupport", List.of("AM5", "LGA1851", "LGA1700"));
+        if (upperTitle.contains("360") || upperTitle.contains("LIQUID") || upperTitle.contains("KRAKEN") || upperTitle.contains("ICUE") || upperTitle.contains("ARCTIC")) {
+            attributes.put("coolerType", "LIQUID_AIO");
+            attributes.put("radiatorSizeMm", 360);
+            attributes.put("tdpW", 280);
+            applyDimensions(attributes, 397, 120, 27);
+        } else {
+            attributes.put("coolerType", "AIR");
+            if (upperTitle.contains("NH-D15")) {
+                attributes.put("coolerHeightMm", 168);
+                attributes.put("tdpW", 250);
+                applyDimensions(attributes, 150, 161, 168);
+            } else if (upperTitle.contains("ASSASSIN")) {
+                attributes.put("coolerHeightMm", 164);
+                attributes.put("tdpW", 280);
+                applyDimensions(attributes, 144, 147, 164);
+            } else {
+                attributes.put("coolerHeightMm", 160);
+                attributes.put("tdpW", 200);
+                applyDimensions(attributes, 120, 120, 160);
+            }
+        }
+    }
+
+    private static void applyManualSpecOverrides(String category, Map<String, Object> attributes, String upperTitle) {
+        switch (category) {
+            case "CASE" -> applyManualCaseSpecs(attributes, upperTitle);
+            case "COOLER" -> applyManualCoolerSpecs(attributes, upperTitle);
+            case "PSU" -> applyManualPsuSpecs(attributes, upperTitle);
+            case "GPU" -> applyManualGpuSpecs(attributes, upperTitle);
+            default -> {
+            }
+        }
+    }
+
+    private static void applyManualCaseSpecs(Map<String, Object> attributes, String upperTitle) {
+        if (upperTitle.contains("MESHIFY 3 XL")) {
+            manualSpec(attributes, "https://www.fractal-design.com/app/uploads/2025/05/Meshify-3-XL_Product_Sheet_EN.pdf");
+            attributes.put("maxGpuLengthMm", 512);
+            attributes.put("maxCpuCoolerHeightMm", 182);
+            attributes.put("maxPsuLengthMm", 230);
+            attributes.put("gpuSlotHeightMm", 189);
+            attributes.put("formFactor", "EATX_ATX_MATX_ITX");
+            attributes.put("radiatorSupportMm", List.of(120, 140, 240, 280, 360, 420));
+            applyDimensions(attributes, 575, 245, 515);
+        } else if (upperTitle.contains("MESHIFY 3")) {
+            manualSpec(attributes, "https://www.fractal-design.com/app/uploads/2025/01/Meshify-3_Product_Sheet_EN.pdf");
+            attributes.put("maxGpuLengthMm", 349);
+            attributes.put("maxCpuCoolerHeightMm", 173);
+            attributes.put("maxPsuLengthMm", 180);
+            attributes.put("gpuSlotHeightMm", 176);
+            attributes.put("formFactor", "ATX_MATX_ITX");
+            attributes.put("radiatorSupportMm", List.of(120, 240, 280, 360));
+            applyDimensions(attributes, 433, 229, 507);
+        } else if (upperTitle.contains("LANCOOL 217")) {
+            manualSpec(attributes, "https://lian-li.com/product/lancool-217/");
+            attributes.put("maxGpuLengthMm", 380);
+            attributes.put("maxCpuCoolerHeightMm", 180);
+            attributes.put("maxPsuLengthMm", 220);
+            attributes.put("formFactor", "SSI_EEB_EATX_ATX_MATX_ITX");
+            attributes.put("radiatorSupportMm", List.of(120, 140, 240, 280, 360));
+            applyDimensions(attributes, 482, 238, 503);
+        } else if (upperTitle.contains("H9 FLOW")) {
+            manualSpec(attributes, "https://nzxt.com/products/h9-flow");
+            attributes.put("maxGpuLengthMm", 459);
+            attributes.put("maxGpuLengthWithFrontRadiatorMm", 410);
+            attributes.put("maxCpuCoolerHeightMm", 165);
+            attributes.put("maxPsuLengthMm", 200);
+            attributes.put("formFactor", "EATX_ATX_MATX_ITX");
+            attributes.put("radiatorSupportMm", List.of(120, 140, 240, 280, 360, 420));
+            applyDimensions(attributes, 481, 315, 506);
+        } else if (upperTitle.contains("FRAME 4000D")) {
+            manualSpec(attributes, "https://www.corsair.com/us/en/explorer/diy-builder/cases/corsair-frame-4000-series/");
+            attributes.put("maxGpuLengthMm", 430);
+            attributes.put("maxGpuLengthWithFrontFansMm", 405);
+            attributes.put("maxCpuCoolerHeightMm", 170);
+            attributes.put("maxPsuLengthMm", 220);
+            attributes.put("formFactor", "EATX_ATX_MATX_ITX");
+            attributes.put("radiatorSupportMm", List.of(120, 140, 240, 280, 360));
+            applyDimensions(attributes, 487, 239, 486);
+        } else if (upperTitle.contains("EVOLV X2")) {
+            manualSpec(attributes, "https://phanteks.com/product/evolv-x2-black/");
+            attributes.put("maxGpuLengthMm", 380);
+            attributes.put("maxGpuWidthMm", 170);
+            attributes.put("maxCpuCoolerHeightMm", 170);
+            attributes.put("maxPsuLengthMm", 250);
+            attributes.put("formFactor", "EATX_ATX_MATX_ITX");
+            attributes.put("radiatorSupportMm", List.of(120, 240, 360));
+            applyDimensions(attributes, 454, 228, 588);
+        } else if (upperTitle.contains("LIGHT BASE 900")) {
+            manualSpec(attributes, "https://www.bequiet.com/en/case/5292");
+            attributes.put("maxGpuLengthMm", 495);
+            attributes.put("maxCpuCoolerHeightMm", 190);
+            attributes.put("maxPsuLengthMm", 225);
+            attributes.put("formFactor", "EATX_ATX_MATX_ITX");
+            attributes.put("radiatorSupportMm", List.of(120, 140, 240, 280, 360, 420));
+            applyDimensions(attributes, 532, 327, 484);
+        }
+    }
+
+    private static void applyManualCoolerSpecs(Map<String, Object> attributes, String upperTitle) {
+        if (upperTitle.contains("LIQUID FREEZER III") && upperTitle.contains("360")) {
+            manualSpec(attributes, "https://www.arctic.de/en/Liquid-Freezer-III-Pro-360-A-RGB/ACFRE00184A");
+            attributes.put("coolerType", "LIQUID_AIO");
+            attributes.put("radiatorSizeMm", 360);
+            attributes.put("radiatorLengthMm", 398);
+            attributes.put("radiatorWidthMm", 120);
+            attributes.put("radiatorThicknessMm", 38);
+            attributes.put("socketSupport", List.of("AM5", "AM4", "LGA1851", "LGA1700"));
+            applyDimensions(attributes, 398, 120, 38);
+        } else if (upperTitle.contains("ASSASSIN IV")) {
+            manualSpec(attributes, "https://www.deepcool.com/company/pressroom/newsrelease/2023/17380.shtml");
+            attributes.put("coolerType", "AIR");
+            attributes.put("coolerHeightMm", 164);
+            attributes.put("heatpipeCount", 7);
+            attributes.put("socketSupport", List.of("AM5", "AM4", "LGA1851", "LGA1700", "LGA1200", "LGA115X"));
+            applyDimensions(attributes, 144, 147, 164);
+        } else if (upperTitle.contains("NH-D15 G2")) {
+            manualSpec(attributes, "https://www.noctua.at/en/products/nh-d15-g2-chromax-black/specifications");
+            attributes.put("coolerType", "AIR");
+            attributes.put("coolerHeightMm", 168);
+            attributes.put("socketSupport", List.of("AM5", "AM4", "LGA1851", "LGA1700", "LGA1200", "LGA115X"));
+            applyDimensions(attributes, 152, 150, 168);
+        } else if (upperTitle.contains("TITAN 360")) {
+            manualSpec(attributes, "https://www.corsair.com/us/en/p/cpu-coolers/cw-9061018-ww/icue-link-titan-360-rx-rgb-aio-liquid-cpu-cooler-cw-9061018-ww");
+            attributes.put("coolerType", "LIQUID_AIO");
+            attributes.put("radiatorSizeMm", 360);
+            attributes.put("radiatorLengthMm", 396);
+            attributes.put("radiatorWidthMm", 120);
+            attributes.put("radiatorThicknessMm", 27);
+            attributes.put("socketSupport", List.of("AM5", "AM4", "LGA1851", "LGA1700"));
+            applyDimensions(attributes, 396, 120, 27);
+        } else if (upperTitle.contains("KRAKEN ELITE") && upperTitle.contains("360")) {
+            manualSpec(attributes, "https://nzxt.com/products/kraken-360-elite-rgb-1");
+            attributes.put("coolerType", "LIQUID_AIO");
+            attributes.put("radiatorSizeMm", 360);
+            attributes.put("radiatorLengthMm", 401);
+            attributes.put("radiatorWidthMm", 120);
+            attributes.put("radiatorThicknessMm", 27);
+            attributes.put("socketSupport", List.of("AM5", "AM4", "LGA1851", "LGA1700"));
+            applyDimensions(attributes, 401, 120, 27);
+        }
+    }
+
+    private static void applyManualPsuSpecs(Map<String, Object> attributes, String upperTitle) {
+        if (upperTitle.contains("RM850") || upperTitle.contains("RM1000") || upperTitle.contains("RMX")) {
+            manualSpec(attributes, "https://www.kitguru.net/components/power-supplies/zardon/corsair-rm1000x-atx-v3-1-3rd-gen-2024-review/all/1/");
+            attributes.put("atxSpec", "ATX 3.1");
+            attributes.put("pcieSpec", "PCIe 5.1");
+            attributes.put("gpuConnector", "12V-2x6");
+            applyDimensions(attributes, 160, 150, 85);
+        } else if (upperTitle.contains("FOCUS") || upperTitle.contains("VERTEX") || upperTitle.contains("GX-")) {
+            manualSpec(attributes, "https://seasonic.com/focus-gx-atx-3/");
+            attributes.put("atxSpec", "ATX 3.1");
+            attributes.put("pcieSpec", "PCIe 5.1");
+            attributes.put("gpuConnector", "12V-2x6");
+            applyDimensions(attributes, 140, 150, 86);
+        } else if (upperTitle.contains("HYDRO G") || upperTitle.contains("MEGA GM") || upperTitle.contains("VIC GM") || upperTitle.contains("VITA GM")) {
+            manualSpec(attributes, "https://www.tomshardware.com/reviews/fsp-hydro-g-pro-1000w-atx-v30-power-supply-review");
+            attributes.put("atxSpec", "ATX 3.1");
+            attributes.put("pcieSpec", "PCIe 5.1");
+            attributes.put("gpuConnector", "12V-2x6");
+            applyDimensions(attributes, 150, 150, 86);
+        } else if (upperTitle.contains("LEADEX") || upperTitle.contains("SUPERFLOWER")) {
+            manualSpec(attributes, "https://hwbusters.com/psus/super-flower-leadex-vii-pro-1000w-atx-v3-1-psu-review/");
+            attributes.put("atxSpec", "ATX 3.1");
+            attributes.put("pcieSpec", "PCIe 5.1");
+            attributes.put("gpuConnector", "12V-2x6");
+            applyDimensions(attributes, 150, 150, 85);
+        } else if (upperTitle.contains("A850GS") || upperTitle.contains("A850GN") || upperTitle.contains("A1000GS") || upperTitle.contains("A1000GL")) {
+            manualSpec(attributes, "https://www.msi.com/Power-Supply/MPG-A850GS-PCIE5");
+            attributes.put("atxSpec", "ATX 3.1");
+            attributes.put("pcieSpec", "PCIe 5.1");
+            attributes.put("gpuConnector", "12V-2x6");
+            applyDimensions(attributes, 150, 150, 86);
+        } else if (upperTitle.contains("MWE GOLD")) {
+            manualSpec(attributes, "https://www.coolermaster.com/en-global/products/mwe-gold-850-v3-atx-3-1/");
+            attributes.put("atxSpec", "ATX 3.1");
+            attributes.put("pcieSpec", "PCIe 5.1");
+            attributes.put("gpuConnector", "12V-2x6");
+            applyDimensions(attributes, 160, 150, 86);
+        }
+    }
+
+    private static void applyManualGpuSpecs(Map<String, Object> attributes, String upperTitle) {
+        if (upperTitle.contains("ROG ASTRAL") && upperTitle.contains("5090")) {
+            manualSpec(attributes, "https://rog.asus.com/graphics-cards/graphics-cards/rog-astral/rog-astral-rtx5090-o32g-gaming/spec/");
+            attributes.put("lengthMm", 357.6);
+            attributes.put("widthMm", 149.3);
+            attributes.put("heightMm", 76);
+            attributes.put("slotWidth", 3.8);
+        } else if ((upperTitle.contains("SUPRIM") || upperTitle.contains("슈프림")) && upperTitle.contains("5090")) {
+            manualSpec(attributes, "https://www.msi.com/Graphics-Card/GeForce-RTX-5090-32G-SUPRIM-SOC/Specification");
+            attributes.put("lengthMm", 359);
+            attributes.put("widthMm", 150);
+            attributes.put("heightMm", 76);
+            attributes.put("slotWidth", 3.8);
+            attributes.put("wattage", 575);
+        } else if ((upperTitle.contains("AORUS") || upperTitle.contains("MASTER")) && upperTitle.contains("5090")) {
+            manualSpec(attributes, "https://www.aorus.com/graphics-cards/GV-N5090AORUS-M-32GD/Specification");
+            attributes.put("lengthMm", 360);
+            attributes.put("widthMm", 150);
+            attributes.put("heightMm", 75);
+            attributes.put("slotWidth", 3.7);
+        } else if ((upperTitle.contains("ZOTAC") || upperTitle.contains("조텍")) && upperTitle.contains("5090")) {
+            manualSpec(attributes, "https://www.zotac.com/us/product/graphics_card/zotac-gaming-geforce-rtx-5090-solid-oc");
+            attributes.put("lengthMm", 329.7);
+            attributes.put("widthMm", 137.8);
+            attributes.put("heightMm", 67.8);
+            attributes.put("slotWidth", 3.5);
+        } else if ((upperTitle.contains("VANGUARD") || upperTitle.contains("뱅가드")) && upperTitle.contains("5080")) {
+            manualSpec(attributes, "https://www.msi.com/Graphics-Card/GeForce-RTX-5080-16G-VANGUARD-SOC/Specification");
+            attributes.put("lengthMm", 357);
+            attributes.put("widthMm", 151);
+            attributes.put("heightMm", 66);
+            attributes.put("slotWidth", 3.3);
+        } else if ((upperTitle.contains("AORUS") || upperTitle.contains("MASTER")) && upperTitle.contains("5080")) {
+            manualSpec(attributes, "https://www.aorus.com/graphics-cards/GV-N5080AORUSM-ICE-16GD/Specification");
+            attributes.put("lengthMm", 360);
+            attributes.put("widthMm", 150);
+            attributes.put("heightMm", 75);
+            attributes.put("slotWidth", 3.7);
+        } else if (upperTitle.contains("PRIME") && upperTitle.contains("5070 TI")) {
+            manualSpec(attributes, "https://www.asus.com/us/motherboards-components/graphics-cards/prime/prime-rtx5070ti-16g/techspec/");
+            attributes.put("lengthMm", 304);
+            attributes.put("widthMm", 126);
+            attributes.put("heightMm", 50);
+            attributes.put("slotWidth", 2.5);
+        } else if ((upperTitle.contains("VENTUS") || upperTitle.contains("벤투스")) && upperTitle.contains("5060 TI")) {
+            manualSpec(attributes, "https://www.msi.com/Graphics-Card/GeForce-RTX-5060-Ti-16G-VENTUS-2X-OC-PLUS/Specification");
+            attributes.put("lengthMm", 227);
+            attributes.put("widthMm", 126);
+            attributes.put("heightMm", 41);
+            attributes.put("slotWidth", 2.0);
+        } else if ((upperTitle.contains("ZOTAC") || upperTitle.contains("조텍")) && upperTitle.contains("5060")) {
+            manualSpec(attributes, "https://www.zotac.com/us/product/graphics_card/zotac-gaming-geforce-rtx-5060-twin-edge-oc");
+            attributes.put("lengthMm", 220.5);
+            attributes.put("slotWidth", 2.0);
+        }
+        if ("MANUAL_PRODUCT_SPEC".equals(attributes.get("specSource"))) {
+            attributes.put("powerConnector", "12V-2x6");
+        }
+    }
+
+    private static void manualSpec(Map<String, Object> attributes, String referenceUrl) {
+        attributes.put("specSource", "MANUAL_PRODUCT_SPEC");
+        attributes.put("specConfidence", "VERIFIED_FIXED_SPEC");
+        attributes.put("specReferenceUrl", referenceUrl);
+    }
+
+    private static void applyCpuCoreAndPower(Map<String, Object> attributes, String upperTitle) {
+        if (upperTitle.contains("9950")) {
+            attributes.put("coreCount", 16);
+            attributes.put("threadCount", 32);
+            attributes.put("tdpW", upperTitle.contains("X3D") ? 120 : 170);
+        } else if (upperTitle.contains("9900")) {
+            attributes.put("coreCount", 12);
+            attributes.put("threadCount", 24);
+            attributes.put("tdpW", 120);
+        } else if (upperTitle.contains("9800") || upperTitle.contains("9700")) {
+            attributes.put("coreCount", 8);
+            attributes.put("threadCount", 16);
+            attributes.put("tdpW", upperTitle.contains("9700") ? 65 : 120);
+        } else if (upperTitle.contains("9600")) {
+            attributes.put("coreCount", 6);
+            attributes.put("threadCount", 12);
+            attributes.put("tdpW", 65);
+        } else if (upperTitle.contains("285K")) {
+            attributes.put("coreCount", 24);
+            attributes.put("threadCount", 24);
+            attributes.put("tdpW", 125);
+        } else if (upperTitle.contains("265K")) {
+            attributes.put("coreCount", 20);
+            attributes.put("threadCount", 20);
+            attributes.put("tdpW", 125);
+        } else if (upperTitle.contains("245K")) {
+            attributes.put("coreCount", 14);
+            attributes.put("threadCount", 14);
+            attributes.put("tdpW", 125);
+        }
+    }
+
+    private static void applyMemorySpeed(Map<String, Object> attributes, String upperTitle) {
+        Matcher matcher = SPEED_PATTERN.matcher(upperTitle);
+        if (matcher.find()) {
+            attributes.put("speedMhz", Integer.parseInt(matcher.group(1)));
+        }
+    }
+
+    private static int inferredGpuLengthMm(String upperTitle) {
+        if (upperTitle.contains("SFF") || upperTitle.contains("DUAL") || upperTitle.contains("2X")) {
+            return upperTitle.contains("5090") ? 304 : upperTitle.contains("5080") ? 280 : 250;
+        }
+        if (upperTitle.contains("ASTRAL") || upperTitle.contains("SUPRIM") || upperTitle.contains("MASTER")) {
+            return upperTitle.contains("5090") ? 360 : 340;
+        }
+        if (upperTitle.contains("5090")) {
+            return 340;
+        }
+        if (upperTitle.contains("5080")) {
+            return 330;
+        }
+        if (upperTitle.contains("5070 TI")) {
+            return 320;
+        }
+        if (upperTitle.contains("5070")) {
+            return 300;
+        }
+        return upperTitle.contains("5060") ? 245 : 304;
+    }
+
+    private static double inferredGpuSlotWidth(String upperTitle) {
+        if (upperTitle.contains("SFF") || upperTitle.contains("DUAL") || upperTitle.contains("2X")) {
+            return 2.5;
+        }
+        if (upperTitle.contains("5090") || upperTitle.contains("ASTRAL") || upperTitle.contains("SUPRIM")) {
+            return 3.5;
+        }
+        return 3.0;
+    }
+
+    private static void applyDimensions(Map<String, Object> attributes, int depthMm, int widthMm, int heightMm) {
+        attributes.put("depthMm", depthMm);
+        attributes.put("widthMm", widthMm);
+        attributes.put("heightMm", heightMm);
+        attributes.put("dimensionsMm", MockData.map(
+                "depth", depthMm,
+                "width", widthMm,
+                "height", heightMm
+        ));
+    }
+
+    private static boolean toolReadyFor(String category, Map<String, Object> attributes) {
+        return switch (category) {
+            case "CPU" -> hasAll(attributes, "socket", "architecture", "coreCount", "tdpW");
+            case "MOTHERBOARD" -> hasAll(attributes, "socket", "chipset", "memoryType", "formFactor", "widthMm", "depthMm");
+            case "RAM" -> hasAll(attributes, "memoryType", "capacityGb", "moduleCount", "formFactor");
+            case "GPU" -> hasAll(attributes, "architecture", "wattage", "requiredSystemPowerW", "vramGb", "memoryType", "lengthMm", "slotWidth");
+            case "STORAGE" -> hasAll(attributes, "interface", "capacityGb", "formFactor");
+            case "PSU" -> hasAll(attributes, "capacityW", "atxSpec", "gpuConnector", "depthMm");
+            case "CASE" -> hasAll(attributes, "formFactor", "maxGpuLengthMm", "maxCpuCoolerHeightMm", "radiatorSupportMm", "widthMm", "heightMm", "depthMm");
+            case "COOLER" -> hasAll(attributes, "coolerType", "socketSupport", "tdpW");
+            default -> false;
+        };
+    }
+
+    private static boolean hasAll(Map<String, Object> attributes, String... keys) {
+        for (String key : keys) {
+            if (attributes.get(key) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isAcceptableCatalogOffer(String category, Map<String, Object> offer) {
+        String title = stringValue(offer.get("title"));
+        if (!StringUtils.hasText(title)) {
+            return false;
+        }
+        String upperTitle = title.toUpperCase(Locale.ROOT);
+        if (upperTitle.contains("중고") || upperTitle.contains("렌탈") || upperTitle.contains("대여")) {
+            return false;
+        }
+        if ("GPU".equals(category)) {
+            return !upperTitle.contains("GPU 없음")
+                    && !upperTitle.contains("그래픽 카드GPU 없음")
+                    && !upperTitle.contains("피규어")
+                    && !upperTitle.contains("장식")
+                    && !upperTitle.contains("모형")
+                    && !upperTitle.contains("수집 가능한 모델");
+        }
+        return true;
     }
 
     private static String manufacturerGuess(Map<?, ?> item) {

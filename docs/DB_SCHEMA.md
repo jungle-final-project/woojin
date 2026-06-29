@@ -856,9 +856,22 @@ JSONB 금지 대상:
   "socket": "AM5",
   "chipset": "B650",
   "wattage": 120,
+  "tdpW": 120,
   "lengthMm": 304,
+  "slotWidth": 3.0,
   "memoryType": "DDR5",
+  "formFactor": "ATX",
+  "widthMm": 305,
+  "depthMm": 244,
+  "heightMm": 45,
+  "maxGpuLengthMm": 380,
+  "maxCpuCoolerHeightMm": 170,
+  "radiatorSupportMm": [120, 240, 280, 360],
   "shortSpec": "RTX 4070 Ti SUPER, 16GB, 285W",
+  "toolReady": true,
+  "specSource": "SEED_OR_TITLE_ENRICHED",
+  "specConfidence": "MODEL_LEVEL",
+  "specReferenceUrl": "https://example.com/product-spec",
   "externalSources": {
     "danawa": {
       "keyword": "RTX 4070 Ti SUPER 16GB",
@@ -878,8 +891,29 @@ JSONB 금지 대상:
 | `socket` | `string` | yes | CPU/메인보드 socket |
 | `chipset` | `string` | yes | 메인보드 chipset |
 | `wattage` | `number` | yes | 소비전력 또는 권장 전력 계산 기준 |
-| `lengthMm` | `number` | yes | GPU/case 호환성 계산 기준 |
+| `tdpW` | `number` | yes | CPU/쿨러 열 설계 전력 계산 기준 |
+| `lengthMm` | `number` | yes | GPU 길이. 케이스 장착 가능 여부 계산 기준 |
+| `slotWidth` | `number` | yes | GPU 슬롯 점유 폭. 케이스/메인보드 간섭 판단 기준 |
 | `memoryType` | `string` | yes | RAM/메인보드 메모리 타입 |
+| `formFactor` | `string` | yes | 메인보드/케이스/SSD 규격. 예: `ATX`, `MATX`, `M.2 2280` |
+| `widthMm` | `number` | yes | 부품 폭. Tool 호환성 계산용 |
+| `depthMm` | `number` | yes | 부품 깊이 또는 길이 방향 치수. Tool 호환성 계산용 |
+| `heightMm` | `number` | yes | 부품 높이. 케이스/쿨러 간섭 계산용 |
+| `maxGpuLengthMm` | `number` | yes | 케이스 GPU 장착 가능 길이 |
+| `maxCpuCoolerHeightMm` | `number` | yes | 케이스 공랭 CPU 쿨러 장착 가능 높이 |
+| `radiatorSupportMm` | `number[]` | yes | 케이스 또는 수랭 쿨러 라디에이터 지원 규격 |
+| `coolerType` | `string` | yes | `AIR`, `LIQUID_AIO` 등 CPU 쿨러 유형 |
+| `socketSupport` | `string[]` | yes | CPU 쿨러 지원 소켓 목록 |
+| `capacityW` | `number` | yes | PSU 정격 출력 |
+| `requiredSystemPowerW` | `number` | yes | GPU 기준 권장 시스템 전력 |
+| `gpuConnector` | `string` | yes | PSU/GPU 전원 커넥터. 예: `12V-2x6` |
+| `vramGb` | `number` | yes | GPU VRAM 용량 |
+| `capacityGb` | `number` | yes | RAM/SSD 용량 |
+| `interface` | `string` | yes | SSD/확장 인터페이스. 예: `PCIe 5.0 x4 NVMe` |
+| `toolReady` | `boolean` | yes | Tool 계산에 필요한 최소 속성 확보 여부 |
+| `specSource` | `string` | yes | 스펙 출처. 예: `SEED_OR_TITLE_ENRICHED`, `NAVER_SHOPPING_SEARCH`, `MANUAL_PRODUCT_SPEC` |
+| `specConfidence` | `string` | yes | 스펙 신뢰도. 예: `MODEL_LEVEL`, `ESTIMATED_FROM_TITLE`, `VERIFIED_FIXED_SPEC` |
+| `specReferenceUrl` | `string` | yes | `MANUAL_PRODUCT_SPEC` 수동 검증 시 참고한 제조사/공식/리뷰 스펙 URL |
 | `shortSpec` | `string` | yes | 쇼핑몰 목록에 표시할 짧은 사양 |
 | `catalogGeneration` | `string` | yes | 내부 자산 카탈로그 기준 세대. 예: `CURRENT_2026_06` |
 | `currentLineupOnly` | `boolean` | yes | 쇼핑몰 기본 노출용 최신 라인업 여부 |
@@ -1096,6 +1130,10 @@ V8__parts_catalog_seed.sql
 V9__current_lineup_parts_seed.sql
 V10__part_external_offers_cache.sql
 V11__part_catalog_refresh_pipeline.sql
+V12__part_tool_spec_enrichment.sql
+V13__part_psu_capacity_enrichment.sql
+V14__part_spec_confidence_normalization.sql
+V15__part_manual_verified_specs.sql
 ```
 
 현재 저장소에는 위 순서의 Flyway migration이 반영되어 있다. 기존 PostgreSQL volume이 남아 있으면 새 migration과 seed가 다시 실행되지 않으므로, 공통 DB를 처음부터 검증할 때는 `docker compose down -v` 후 `docker compose up --build`를 사용한다.

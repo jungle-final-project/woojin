@@ -13,7 +13,8 @@ const selfQuoteCategories = [
   { label: 'GPU', value: 'GPU' },
   { label: 'SSD', value: 'STORAGE' },
   { label: '파워', value: 'PSU' },
-  { label: '케이스', value: 'CASE' }
+  { label: '케이스', value: 'CASE' },
+  { label: '쿨러', value: 'COOLER' }
 ];
 
 export function SelfQuotePage() {
@@ -224,6 +225,8 @@ function categoryAccent(category: string) {
       return '#ca8a04';
     case 'CASE':
       return '#dc2626';
+    case 'COOLER':
+      return '#0f766e';
     default:
       return '#334155';
   }
