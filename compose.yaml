@@ -55,6 +55,10 @@ services:
       SPRING_RABBITMQ_PASSWORD: buildgraph
       SPRING_MAIL_HOST: mailpit
       SPRING_MAIL_PORT: 1025
+      AGENT_RUNNER_MODE: ${AGENT_RUNNER_MODE:-deterministic}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
     depends_on:
       postgres:
         condition: service_healthy
