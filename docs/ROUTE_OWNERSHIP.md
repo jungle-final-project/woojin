@@ -10,7 +10,7 @@
 - `products` 도메인은 사용하지 않고 `parts` 도메인을 사용한다.
 - API path의 `{id}`와 frontend route param은 모두 `public_id`다.
 - 내부 DB `BIGINT id`는 frontend에 노출하지 않는다.
-- Auth 화면 owner와 Auth API owner는 분리한다.
+- Auth 화면/API 구현 owner와 공통 auth/guard owner는 분리한다.
 - AdminShell owner와 각 admin page 내부 owner는 분리한다.
 - 주문, 결제, 배송, 재고 차감, 타임세일은 V1 route/API에 포함하지 않는다.
 - 직접 Tool check는 `tool_invocations`에 저장하지 않는다. Agent/recommend 내부 Tool 호출만 저장한다.
@@ -64,8 +64,8 @@ MVP 기준 결정값:
 | `/builds/:buildId/change-part` route | 1번 | 2번 | 1번은 교체 flow와 route state, 2번은 parts 검색/필터와 category별 후보 DTO만 수정 가능 | 예, 1번과 2번 상호 review |
 | `/admin` route | 5번 | 2번, 3번, 4번 | 5번은 shell, guard, dashboard frame을 수정한다. 각 도메인 owner는 자기 admin summary card의 데이터 mapping만 수정 가능 | 도메인 card 변경 시 5번 |
 | AdminShell | 5번 | 2번, 3번, 4번 | 승인만 필요한 변경: nav item label/order, 각 owner의 admin route link 추가. 5번만 직접 수정 가능한 변경: guard, layout slot contract, admin 권한 분기, dashboard 공통 query | 예, 5번 |
-| Auth 화면 | 1번 | 5번 | 1번은 `/login`, `/signup`, `/auth/callback` 화면 state와 form validation을 수정한다. token 저장, route guard, refresh 흐름은 수정하지 않는다 | Auth API 연동 변경 시 5번 |
-| Auth API | 5번 | 1번 | 5번은 auth endpoint, token, OAuth, guard를 수정한다. 1번은 화면에서 필요한 DTO 필드 제안을 API 계약 PR로만 요청한다 | 화면 DTO 변경 시 1번 |
+| Auth 화면 | 1번 | 5번 | 1번은 `/login`, `/signup`, `/auth/callback` 화면 state와 form validation, Auth API 연동을 수정한다. token 저장 정책과 route guard는 5번과 맞춘다 | Auth 공통 정책 변경 시 5번 |
+| Auth API | 1번 | 5번 | 1번은 `POST /api/users`, login/me/refresh/logout/OAuth skeleton을 OpenAPI 계약에 맞게 구현한다. token 저장/전달 정책, `RequireAdmin`, admin guard, 공통 security 설정은 5번과 맞춘다 | 공통 auth/guard 변경 시 5번 |
 | `components/**` | 5번 | 모든 화면 owner | 승인만 필요한 변경: 기존 prop을 깨지 않는 style variant, 접근성 label, 빈 상태 문구. 5번만 직접 수정 가능한 변경: prop rename/remove, layout primitive, table/form control contract, global theme token | 예, 5번 |
 | `apps/web/src/lib/api.ts` | 5번 | 모든 API owner | 승인만 필요한 변경: owner별 endpoint wrapper 추가, typed DTO import 추가. 5번만 직접 수정 가능한 변경: auth header, refresh retry, base URL, error normalization, pagination 공통 처리 | error/auth/pagination 변경 시 5번 |
 | `config/security` | 5번 | 모든 API owner | 5번만 직접 수정 가능: Spring Security chain, CORS, role mapping, JWT filter, public path allowlist. 각 owner는 필요한 path 권한을 문서와 PR 설명에 적는다 | 예, 5번 |
@@ -73,18 +73,18 @@ MVP 기준 결정값:
 
 ## 담당자별 소유 범위
 
-### 1번: Quote/Auth 화면
+### 1번: Quote/Auth
 
 | 항목 | 내용 |
 |---|---|
 | 담당 화면 route | `/`, `/requirements/new`, `/builds/:buildId`, `/builds/:buildId/change-part`, `/my/quotes`, `/login`, `/signup`, `/auth/callback` |
 | frontend files | `features/quote/**`, `features/auth/pages/**` |
-| backend packages | `build`, `requirement` |
-| DB tables | `requirements`, `builds`, `build_items` |
-| API endpoints | `POST /api/requirements/parse`, `POST /api/builds/recommend`, `GET /api/builds/{id}`, `GET /api/builds/history`, `POST /api/builds/{id}/change-part` |
-| 협업자 | Auth API는 5번, Tool/RAG 근거는 3번, parts 데이터는 2번 |
+| backend packages | `build`, `requirement`, `user`, `auth` |
+| DB tables | `requirements`, `builds`, `build_items`, `users`, `user_auth_providers`, `refresh_tokens` |
+| API endpoints | `POST /api/users`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/auth/google/start`, `GET /api/auth/google/callback`, `POST /api/auth/exchange`, `POST /api/requirements/parse`, `POST /api/builds/recommend`, `GET /api/builds/{id}`, `GET /api/builds/history`, `POST /api/builds/{id}/change-part` |
+| 협업자 | Auth 공통 정책과 guard는 5번, Tool/RAG 근거는 3번, parts 데이터는 2번 |
 
-Auth 화면 주 owner는 1번이다. Auth API, `users`, OAuth, refresh token, route guard의 주 owner는 5번이다.
+Auth 화면과 Auth API 구현의 주 owner는 1번이다. `users`, `user_auth_providers`, `refresh_tokens`를 사용하는 로그인/회원가입/refresh/logout/OAuth skeleton 구현도 1번이 맡는다. token 저장/전달 정책, `RequireAdmin`, admin guard, `apps/web/src/lib/api.ts`, 공통 security 설정은 5번 owner와 맞춘다.
 
 ### 2번: Parts/Price/Tool
 
@@ -121,16 +121,16 @@ Auth 화면 주 owner는 1번이다. Auth API, `users`, OAuth, refresh token, ro
 | API endpoints | `POST /api/agent-logs/upload`, `GET /api/agent-logs/{id}`, `POST /api/as-tickets`, `GET /api/as-tickets/{id}`, `GET /api/admin/as-tickets`, `GET /api/admin/as-tickets/{id}`, `PATCH /api/admin/as-tickets/{id}` |
 | 협업자 | Auth/guard는 5번, AS 원인 후보 Agent는 3번 |
 
-### 5번: Auth/AdminShell/Infra
+### 5번: Auth Common/AdminShell/Infra
 
 | 항목 | 내용 |
 |---|---|
 | 담당 화면 route | `/admin` shell/guard/dashboard |
 | frontend files | `features/admin/shell/**`, `components/**`, auth API client/guard |
-| backend packages | `user`, `auth`, `admin`, `common`, config/security |
-| DB tables | `users`, `user_auth_providers`, `refresh_tokens`, `admin_audit_logs` |
-| API endpoints | `POST /api/users`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/auth/google/start`, `GET /api/auth/google/callback`, `POST /api/auth/exchange`, `GET /api/admin/dashboard`, `GET /api/admin/audit-logs/recent`, `GET /api/health` |
-| 협업자 | Auth 화면은 1번, domain admin page 내부는 각 도메인 owner, `price_jobs` infra는 2번과 협업 |
+| backend packages | `admin`, `common`, config/security |
+| DB tables | `admin_audit_logs` |
+| API endpoints | `GET /api/admin/dashboard`, `GET /api/admin/audit-logs/recent`, `GET /api/health` |
+| 협업자 | Auth 화면/API 구현은 1번, domain admin page 내부는 각 도메인 owner, `price_jobs` infra는 2번과 협업 |
 
 ## route ownership
 
@@ -161,14 +161,14 @@ Auth 화면 주 owner는 1번이다. Auth API, `users`, OAuth, refresh token, ro
 
 | API | 주 owner | 협업자 |
 |---|---|---|
-| `POST /api/users` | 5번 | 1번 |
-| `POST /api/auth/login` | 5번 | 1번 |
-| `POST /api/auth/refresh` | 5번 | - |
-| `POST /api/auth/logout` | 5번 | - |
-| `GET /api/auth/me` | 5번 | 1번 |
-| `GET /api/auth/google/start` | 5번 | 1번 |
-| `GET /api/auth/google/callback` | 5번 | 1번 |
-| `POST /api/auth/exchange` | 5번 | 1번 |
+| `POST /api/users` | 1번 | 5번 |
+| `POST /api/auth/login` | 1번 | 5번 |
+| `POST /api/auth/refresh` | 1번 | 5번 |
+| `POST /api/auth/logout` | 1번 | 5번 |
+| `GET /api/auth/me` | 1번 | 5번 |
+| `GET /api/auth/google/start` | 1번 | 5번 |
+| `GET /api/auth/google/callback` | 1번 | 5번 |
+| `POST /api/auth/exchange` | 1번 | 5번 |
 | `POST /api/requirements/parse` | 1번 | - |
 | `POST /api/builds/recommend` | 1번 | 2번, 3번 |
 | `GET /api/builds/{id}` | 1번 | 2번, 3번 |
@@ -261,7 +261,7 @@ checked:
 - `components/**`와 AdminShell 변경은 5번 주 owner가 승인한다.
 - 각 기능 owner는 자기 feature 폴더 내부 컴포넌트를 우선 사용한다.
 - 공통 table, badge, panel, form control을 변경할 때는 영향 route를 PR에 적는다.
-- Auth layout은 1번 화면 owner가 작업하되 guard와 token 처리는 5번 owner가 관리한다.
+- Auth layout과 Auth API 구현은 1번 owner가 작업하되 guard, token 저장/전달 정책, admin 권한 처리는 5번 owner와 맞춘다.
 
 ## PR 규칙
 
