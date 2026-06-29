@@ -67,6 +67,7 @@
 | 9 | Tool/RAG 상세 화면 API 연결 | 완료 | `ToolInvocationAdminPage`, `RagEvidenceAdminPage`가 관리자 상세 API 데이터 표시 | 테스트/계약 검증에서 route smoke 유지 |
 | 10 | 테스트와 계약 검증 | 완료 | OpenAPI, backend bootJar, frontend build/test, 정식 Docker compose smoke 통과 | PR 전 같은 명령 재실행 |
 | 11 | 협업 인터페이스 문서화 | 완료 | `docs/owner-3-agent-rag-collaboration-guide.md` 추가 | 팀 피드백 반영 |
+| 12 | LLM summary 생성 연결 | 완료 | `AgentRunner`, `LlmAgentRunner`, `OpenAiResponsesClient`, LLM 실행 환경변수 추가, 실제 LLM smoke 통과 | 2번 Tool/4번 AS 실제 결과와 prompt context 연결 |
 
 ## 2026-06-29 검증 기록
 
@@ -82,6 +83,19 @@
 | Web smoke | `GET http://localhost:5173` | HTTP `200` |
 | Agent smoke | 세션 생성 -> 실행 -> 상세 조회 | `RUNNING` 응답 후 최종 `SUCCEEDED`, Tool 5개, RAG evidence 1개 확인 |
 | Admin smoke | 관리자 Agent/Tool/RAG 상세 API 조회 | 첫 Tool `compatibility / PASS`, RAG source `internal-rule-qhd-gaming-mock` 확인 |
+
+## 2026-06-29 LLM 연결 진행 기록
+
+| 구분 | 결과 |
+|---|---|
+| 실행 경계 | `AgentRunner` 인터페이스로 분리 완료 |
+| 기본 runner | `DeterministicAgentRunner`로 유지, 키 없이 Docker 기본 실행 가능 |
+| LLM runner | `AGENT_RUNNER_MODE=llm`일 때 `LlmAgentRunner`가 OpenAI Responses API로 summary 생성 |
+| OpenAI client | `OpenAiResponsesClient` 추가, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` 환경변수 사용 |
+| 검증 완료 | 키 없이 기본 `deterministic` mode에서 Docker compose, API health, Agent smoke, Admin smoke 통과 |
+| 실제 LLM smoke | 로컬 `.env`에 `OPENAI_API_KEY`와 `AGENT_RUNNER_MODE=llm`을 넣고 Docker API 재빌드 후 Agent 실행 성공 |
+| LLM 결과 | `RUNNING -> RAG_SEARCHED -> TOOLS_CALLED -> SUMMARY_READY -> SUCCEEDED`, Tool 5개, RAG evidence 1개, 한국어 summary 저장 확인 |
+| 남은 연결 | 실제 embedding 검색과 2번 Tool 계산 결과를 prompt context에 연결 |
 
 ## 빠른 완성 순서
 

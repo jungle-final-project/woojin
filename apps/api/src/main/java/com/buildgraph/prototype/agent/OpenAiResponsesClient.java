@@ -46,10 +46,8 @@ public class OpenAiResponsesClient {
         }
         Map<String, Object> request = Map.of(
                 "model", model,
-                "input", List.of(
-                        message("system", systemPrompt),
-                        message("user", userPrompt)
-                )
+                "instructions", systemPrompt,
+                "input", userPrompt
         );
         Map<String, Object> response = restClient.post()
                 .uri("/responses")
@@ -62,13 +60,6 @@ public class OpenAiResponsesClient {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "OpenAI 응답에서 summary text를 찾을 수 없습니다.");
         }
         return output.trim();
-    }
-
-    private static Map<String, Object> message(String role, String text) {
-        return Map.of(
-                "role", role,
-                "content", List.of(Map.of("type", "input_text", "text", text))
-        );
     }
 
     @SuppressWarnings("unchecked")
