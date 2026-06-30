@@ -1,25 +1,33 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Screen, StateMessage } from '../../components/ui';
-import { saveToken } from '../../lib/api';
+import { ApiError, saveAuthTokens } from '../../lib/api';
 import { login, signup } from './authApi';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setSubmitting(true);
     const form = new FormData(event.currentTarget);
     try {
-      const response = await login(String(form.get('email') ?? ''), String(form.get('password') ?? ''));
-      saveToken(response.accessToken);
+      const email = String(form.get('email') ?? '').trim();
+      const password = String(form.get('password') ?? '');
+      const response = await login(email, password);
+      saveAuthTokens(response.accessToken, response.refreshToken);
       navigate(safeRedirect(searchParams.get('redirect')));
-    } catch {
-      setError('API 연결 전에는 Docker compose로 백엔드를 먼저 실행해 주세요.');
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : 'API 연결 전에는 Docker compose로 백엔드를 먼저 실행해 주세요.');
+    } finally {
+      setSubmitting(false);
     }
   }
+
   return (
     <Screen>
       <div className="mx-auto mt-24 w-[420px] panel p-8">
@@ -27,9 +35,34 @@ export function LoginPage() {
         <p className="mt-1 text-sm text-slate-500">JWT 기반 프로토타입 인증</p>
         {error ? <div className="mt-4"><StateMessage type="warn" title="로그인 실패" body={error} /></div> : null}
         <form onSubmit={submit} className="mt-6 space-y-4">
-          <input name="email" className="h-11 w-full rounded border border-slate-300 px-3 text-sm" defaultValue="user@example.com" />
-          <input name="password" className="h-11 w-full rounded border border-slate-300 px-3 text-sm" defaultValue="passw0rd!" type="password" />
-          <button className="h-11 w-full rounded bg-brand-blue text-sm font-bold text-white">로그인</button>
+          <label className="block text-sm font-semibold text-slate-700">
+            이메일
+            <input
+              name="email"
+              className="mt-2 h-11 w-full rounded border border-slate-300 px-3 text-sm"
+              placeholder="user@example.com"
+              autoComplete="username"
+              type="email"
+              required
+            />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">
+            비밀번호
+            <input
+              name="password"
+              className="mt-2 h-11 w-full rounded border border-slate-300 px-3 text-sm"
+              placeholder="비밀번호"
+              autoComplete="current-password"
+              type="password"
+              required
+            />
+          </label>
+          <button
+            className="h-11 w-full rounded bg-brand-blue text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+            disabled={submitting}
+          >
+            {submitting ? '로그인 중' : '로그인'}
+          </button>
           <Link to="/signup" className="block h-11 rounded border border-slate-300 pt-3 text-center text-sm font-bold">회원가입</Link>
         </form>
       </div>
