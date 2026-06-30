@@ -64,11 +64,41 @@ test('updates header from login response before auth me finishes', async ({ page
 
   await expect(page.getByText('로그인됨 · fast@example.com · USER')).toBeVisible({ timeout: 2_000 });
   await expect(page.getByText('Fast User')).toBeVisible({ timeout: 2_000 });
+  await expect(page.getByRole('navigation').getByRole('link', { name: '관리자' })).toHaveCount(0);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('buildgraph.authUser') ?? '{}'))).toMatchObject({
     email: 'fast@example.com',
     name: 'Fast User',
     role: 'USER'
   });
+});
+
+test('shows admin navigation only for ADMIN role', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('buildgraph.token', 'jwt-admin-token');
+    localStorage.setItem('buildgraph.authUser', JSON.stringify({
+      id: 'admin-001',
+      email: 'admin@example.com',
+      name: 'Admin User',
+      role: 'ADMIN'
+    }));
+  });
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'admin-001',
+        email: 'admin@example.com',
+        name: 'Admin User',
+        role: 'ADMIN'
+      })
+    });
+  });
+
+  await page.goto('/login');
+
+  await expect(page.getByText('로그인됨 · admin@example.com · ADMIN')).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('link', { name: '관리자' })).toHaveAttribute('href', '/admin');
 });
 
 test('refreshes expired access token and retries current user request', async ({ page }) => {

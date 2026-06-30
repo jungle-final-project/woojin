@@ -116,7 +116,7 @@ export function AppHeader() {
           </div>
         </div>
       </header>
-      <PrimaryNav />
+      <PrimaryNav isAdmin={user?.role === 'ADMIN'} />
     </>
   );
 }
