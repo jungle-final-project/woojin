@@ -371,7 +371,7 @@ function StarterView({
 }) {
   return (
     <div className="space-y-8 pb-10">
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="grid gap-5">
         <div className="panel overflow-hidden">
           <div className="border-b border-commerce-line bg-white px-5 py-3 sm:px-7">
             <div className="flex flex-wrap items-center gap-2 text-xs font-black">
@@ -451,7 +451,7 @@ function StarterView({
           </div>
         </div>
 
-        <aside className="panel p-5">
+        {/* <aside className="panel p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black text-commerce-ink">빠른 쇼핑</h2>
@@ -477,7 +477,7 @@ function StarterView({
               </Link>
             ))}
           </div>
-        </aside>
+        </aside> */}
       </section>
 
       <section className="panel p-5">
@@ -568,7 +568,7 @@ function ConsultingView({
         </button>
       </div>
 
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_390px]">
+      {/* <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_390px]">
         <div className="panel relative overflow-hidden p-5 sm:p-7">
           <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-brand-blue via-emerald-500 to-amber-400" />
           <div className="flex flex-wrap items-center gap-2">
@@ -614,7 +614,7 @@ function ConsultingView({
             ))}
           </div>
         </aside>
-      </section>
+      </section> */}
 
       <section className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="panel p-5">
