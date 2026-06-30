@@ -11,10 +11,10 @@ export function PrimaryNav() {
     ['/admin', '관리자']
   ];
   return (
-    <nav className="h-[42px] bg-brand-blue text-sm text-white">
-      <div className="mx-auto flex h-full w-[1320px] items-center gap-1">
+    <nav className="bg-brand-blue text-sm text-white">
+      <div className="mx-auto flex min-h-[42px] w-full max-w-[1320px] items-center gap-1 overflow-x-auto px-2 sm:px-6 lg:px-8 xl:px-0">
         {nav.map(([to, label]) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `px-6 py-3 font-semibold ${isActive ? 'bg-white/18' : 'hover:bg-white/10'}`}>
+          <NavLink key={to} to={to} className={({ isActive }) => `whitespace-nowrap px-4 py-3 font-semibold sm:px-6 ${isActive ? 'bg-white/18' : 'hover:bg-white/10'}`}>
             {label}
           </NavLink>
         ))}

@@ -461,6 +461,11 @@ AdminShell nav 분석 결과:
 - [x] `README.md`와 `ROUTE_OWNERSHIP.md`는 Auth/User 구현 owner 1번 기준과 2번의 parts/catalog refresh 확장 기준을 함께 반영했다.
 - [x] 충돌 marker 제거 후 `npm --prefix apps/web run build`와 `git diff --check`가 통과했다.
 
+#### Home UI 커밋 메시지 요청 기록
+
+- [x] 2026-06-30 기준 홈 화면 command center 개편, 공통 header/nav/screen 반응형 조정, body 최소 폭 제거, 홈 Playwright 테스트 추가 범위를 확인했다.
+- [x] 커밋 메시지에는 사용자 홈 화면 경험과 모바일 overflow 방지 검증을 함께 반영한다.
+
 ## 우선순위
 
 ### P0
